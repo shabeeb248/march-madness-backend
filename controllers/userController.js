@@ -1,5 +1,6 @@
 const userService = require("../services/userService");
 const jwt = require("jsonwebtoken");
+const Wallet = require("../models/Wallet");
 
 class UserController {
   // Register
@@ -18,19 +19,23 @@ class UserController {
         return res.status(400).json({ message: "User already exists" });
       }
 
+      // 1️⃣ Create user
       const user = await userService.createUser({
         name,
         email,
         mobile,
         password,
       });
+
+      // 2️⃣ Create wallet with default 500 balance
+      await Wallet.create({ user: user._id, balance: 500 });
+
       res.status(201).json({ message: "User created successfully", user });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Server error" });
     }
   }
-
   // Login
   async login(req, res) {
     try {

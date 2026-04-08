@@ -5,8 +5,8 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true },
     email: { type: String, unique: true, sparse: true }, // optional, but unique if exists
     mobile: { type: String, unique: true, sparse: true }, // optional, but unique if exists
+    username: { type: String, unique: true, required: true },
     password: { type: String, required: true },
-    walletAmount: { type: Number, default: 500 },
     role: {
       type: String,
       enum: ["user", "admin", "superadmin"],

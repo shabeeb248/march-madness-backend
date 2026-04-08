@@ -33,7 +33,7 @@ app.use("/api/users", require("./routes/userRoutes"));
 app.use("/api/games", require("./routes/gameRoutes"));
 app.use("/api/entries", require("./routes/entryRoutes"));
 app.use("/api/history", require("./routes/historyRoutes"));
-app.use("/api/transactions", require("./routes/transactionRoutes"));
+app.use("/api/wallet", require("./routes/walletRoutes"));
 
 // Start Server
 const PORT = process.env.PORT || 5000;
