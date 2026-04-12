@@ -3,6 +3,7 @@ const dotenv = require("dotenv");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const connectDB = require("./config/database");
+const startGameScheduler = require("./utils/scheduler");
 
 dotenv.config();
 
@@ -27,6 +28,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Connect DB
 connectDB();
+
+// Start Game Scheduler
+startGameScheduler();
 
 // Routes
 app.use("/api/users", require("./routes/userRoutes"));

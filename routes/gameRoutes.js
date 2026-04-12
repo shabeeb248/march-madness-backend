@@ -12,9 +12,10 @@ router.post("/update-score", auth, isAdmin, controller.updateScore);
 router.post("/join/:gameId", auth, controller.joinGame);
 
 // Public
-router.get("/all", controller.getAllGames);
-router.get("/upcoming", controller.getUpcomingGames);
-router.get("/live", controller.getLiveGames);
-router.get("/:gameId", controller.getGame);
+router.get("/all", auth, controller.getAllGames);
+router.get("/upcoming", auth, controller.getUpcomingGames);
+router.get("/live", auth, controller.getLiveGames);
+router.get("/:gameId", auth, controller.getGame);
+router.get("/:gameId/details", auth, controller.getGame);
 
 module.exports = router;

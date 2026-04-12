@@ -43,6 +43,9 @@ class WalletService {
         type: "deposit",
         amount,
         balanceAfter: wallet.balance,
+        status: "completed", // 👈 important
+        title: "Bank Deposit",
+        subtitle: "Chase Bank",
       });
     }
 
@@ -64,16 +67,72 @@ class WalletService {
       type: "withdraw",
       amount,
       balanceAfter: wallet.balance,
+      status: "completed",
+      title: "Withdrawal",
+      subtitle: "Chase Bank",
     });
 
     return wallet;
   }
 
   async getUserTransactions(userId) {
-    const transactions = await Transaction.find({ user: userId }).sort({
-      createdAt: -1,
+    const transactions = await Transaction.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return transactions.map((tx) => ({
+      id: tx._id,
+      type: tx.type,
+      title: tx.title,
+      subtitle:
+        tx.subtitle + " • " + new Date(tx.createdAt).toLocaleDateString(),
+
+      amount: tx.amount,
+      status: tx.status,
+    }));
+  }
+
+  async gameEntry(userId, amount, matchName) {
+    const wallet = await Wallet.findOne({ user: userId });
+
+    if (!wallet) throw new Error("Wallet not found");
+    if (wallet.balance < amount) throw new Error("Insufficient balance");
+
+    wallet.balance -= amount;
+    await wallet.save();
+
+    await Transaction.create({
+      user: userId,
+      type: "entry",
+      amount,
+      balanceAfter: wallet.balance,
+      status: "completed",
+      title: "Game Entry",
+      subtitle: matchName, // "DUK vs UNC"
     });
-    return transactions || [];
+
+    return wallet;
+  }
+
+  async addWinning(userId, amount, matchName, isFinal = true) {
+    const wallet = await Wallet.findOne({ user: userId });
+
+    if (!wallet) throw new Error("Wallet not found");
+
+    wallet.balance += amount;
+    await wallet.save();
+
+    await Transaction.create({
+      user: userId,
+      type: isFinal ? "win_final" : "win_half",
+      amount,
+      balanceAfter: wallet.balance,
+      status: "completed",
+      title: isFinal ? "Game Winnings (Final)" : "Game Winnings (Half)",
+      subtitle: matchName,
+    });
+
+    return wallet;
   }
 }
 

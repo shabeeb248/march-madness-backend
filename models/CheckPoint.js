@@ -3,21 +3,31 @@ const mongoose = require("mongoose");
 const checkpointSchema = new mongoose.Schema(
   {
     gameId: { type: mongoose.Schema.Types.ObjectId, ref: "Game" },
+
     type: {
       type: String,
       enum: ["timeout", "halftime", "final"],
     },
-    sequence: Number, // 1–10
+
+    sequence: Number,
     rewardAmount: Number,
+
     status: {
       type: String,
       enum: ["pending", "completed"],
       default: "pending",
     },
+
+    // ✅ RESULT
     winningNumber: Number,
     winningEntryId: { type: mongoose.Schema.Types.ObjectId, ref: "GameEntry" },
+
+    // 🔥 NEW (for UI)
+    startTime: Date,
+    endTime: Date,
+    duration: Number, // seconds (e.g. 240)
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("Checkpoint", checkpointSchema);

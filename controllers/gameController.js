@@ -13,10 +13,7 @@ exports.createGame = async (req, res) => {
 // ✅ Join Game
 exports.joinGame = async (req, res) => {
   try {
-    const entry = await gameService.joinGame(
-      req.params.gameId,
-      req.user.id
-    );
+    const entry = await gameService.joinGame(req.params.gameId, req.user.id);
     res.json({ success: true, entry });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -41,17 +38,16 @@ exports.updateScore = async (req, res) => {
     const result = await gameService.updateScore(
       gameId,
       teamAScore,
-      teamBScore
+      teamBScore,
     );
 
     res.json({ success: true, ...result });
-
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 };
 
-// ✅ Get Game Details
+// ✅ Get Game
 exports.getGame = async (req, res) => {
   try {
     const data = await gameService.getGame(req.params.gameId);
@@ -60,6 +56,18 @@ exports.getGame = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+// ✅ Get Game Details
+exports.getGameDetails = async (req, res) => {
+  try {
+    const userId = req.user._id; // from auth middleware
+    const data = await gameService.getGameDetails(req.params.gameId, userId);
+    res.json({ success: true, ...data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 
 // ✅ Get All Games
 exports.getAllGames = async (req, res) => {

@@ -12,7 +12,6 @@ const gameSchema = new mongoose.Schema(
     potAmount: Number,
 
     startTime: Date,
-    endTime: Date,
 
     status: {
       type: String,
