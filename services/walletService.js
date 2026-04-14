@@ -33,7 +33,11 @@ class WalletService {
     const wallet = await Wallet.findOneAndUpdate(
       { user: userId },
       { $inc: { balance: amount } },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
+      {
+        returnDocument: "after",
+        upsert: true,
+        setDefaultsOnInsert: true,
+      },
     );
 
     // Log transaction only if amount > 0
@@ -133,6 +137,26 @@ class WalletService {
     });
 
     return wallet;
+  }
+
+  async getRecentPayouts(limit = 10) {
+    const payouts = await Transaction.find({
+      type: { $in: ["win_final", "win_half"] },
+      status: "completed",
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate("user", "name") // optional if you have user name
+      .lean();
+
+    return payouts.map((tx) => ({
+      id: tx._id,
+      user: tx.user?.name || "User",
+      label: tx.subtitle || "Match",
+      stage: tx.type === "win_final" ? "Final" : "Half",
+      amount: tx.amount,
+      createdAt: tx.createdAt,
+    }));
   }
 }
 

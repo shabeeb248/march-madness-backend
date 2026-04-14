@@ -16,6 +16,8 @@ router.get("/all", auth, controller.getAllGames);
 router.get("/upcoming", auth, controller.getUpcomingGames);
 router.get("/live", auth, controller.getLiveGames);
 router.get("/:gameId", auth, controller.getGame);
-router.get("/:gameId/details", auth, controller.getGame);
+router.get("/:gameId/details", auth, controller.getGameDetails);
+router.get("/:id/checkpoints", auth, controller.getCheckpoints);
+router.get("/:id/winners", auth, controller.getWinners);
 
 module.exports = router;

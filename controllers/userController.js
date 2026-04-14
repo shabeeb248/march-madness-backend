@@ -6,7 +6,7 @@ class UserController {
   // Register
   async register(req, res) {
     try {
-      const { name, email, mobile, password } = req.body;
+      const { name, email, mobile, password, username } = req.body;
 
       if (!password || (!email && !mobile)) {
         return res
@@ -25,15 +25,18 @@ class UserController {
         email,
         mobile,
         password,
+        username,
       });
 
       // 2️⃣ Create wallet with default 500 balance
       await Wallet.create({ user: user._id, balance: 500 });
 
-      res.status(201).json({ message: "User created successfully", user });
+      res
+        .status(201)
+        .json({ status: 201, message: "User created successfully", user });
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: "Server error" });
+      res.status(500).json({ status: 500, message: "Server error" });
     }
   }
   // Login

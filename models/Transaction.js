@@ -7,7 +7,7 @@ const transactionSchema = new mongoose.Schema(
     // ✅ Extend types
     type: {
       type: String,
-      enum: ["deposit", "withdraw", "entry", "win_final", "win_half"],
+      enum: ["deposit", "withdraw", "entry", "win_final", "win_half", "win_timeout"],
       required: true,
     },
 

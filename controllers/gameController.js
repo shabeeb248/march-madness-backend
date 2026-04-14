@@ -50,7 +50,8 @@ exports.updateScore = async (req, res) => {
 // ✅ Get Game
 exports.getGame = async (req, res) => {
   try {
-    const data = await gameService.getGame(req.params.gameId);
+    const userId = req.user._id; // from auth middleware
+    const data = await gameService.getGame(req.params.gameId, userId);
     res.json({ success: true, ...data });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -67,7 +68,6 @@ exports.getGameDetails = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
 
 // ✅ Get All Games
 exports.getAllGames = async (req, res) => {
@@ -96,5 +96,44 @@ exports.getLiveGames = async (req, res) => {
     res.json({ success: true, games });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getCheckpoints = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const checkpoints = await gameService.getCheckpoints(id);
+
+    res.json({
+      success: true,
+      data: checkpoints,
+    });
+  } catch (err) {
+    console.error("getCheckpoints error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+// ✅ GET WINNERS
+exports.getWinners = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const winners = await gameService.getWinners(id);
+
+    res.json({
+      success: true,
+      data: winners,
+    });
+  } catch (err) {
+    console.error("getWinners error:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };

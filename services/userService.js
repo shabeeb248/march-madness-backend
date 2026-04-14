@@ -21,6 +21,41 @@ class UserService {
   async verifyPassword(user, password) {
     return bcrypt.compare(password, user.password);
   }
+  async getUserStats(userId) {
+    // 1️⃣ Total Entries
+    const totalEntries = await GameEntry.countDocuments({ userId });
+
+    // 2️⃣ Get all winning checkpoints for this user
+    const wins = await Checkpoint.find({ status: "completed" }).populate({
+      path: "winningEntryId",
+      match: { userId: userId },
+    });
+
+    // filter only checkpoints where user actually won
+    const userWins = wins.filter((c) => c.winningEntryId !== null);
+
+    // 3️⃣ Total games won
+    const totalWins = userWins.length;
+
+    // 4️⃣ Total earnings
+    const totalEarnings = userWins.reduce(
+      (sum, c) => sum + (c.rewardAmount || 0),
+      0,
+    );
+
+    // 5️⃣ Highest win
+    const highestWin =
+      userWins.length > 0
+        ? Math.max(...userWins.map((c) => c.rewardAmount || 0))
+        : 0;
+
+    return {
+      totalEntries,
+      totalWins,
+      totalEarnings,
+      highestWin,
+    };
+  }
 }
 
 module.exports = new UserService();

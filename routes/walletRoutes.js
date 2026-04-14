@@ -7,5 +7,6 @@ router.get("/me", auth, walletController.getMyWallet);
 router.post("/deposit", auth, walletController.deposit);
 router.post("/withdraw", auth, walletController.withdraw);
 router.get("/transactions", auth, walletController.getMyTransactions);
+router.get("/recent-payouts", auth, walletController.getRecentPayouts);
 
 module.exports = router;

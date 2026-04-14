@@ -50,3 +50,19 @@ exports.getMyTransactions = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+exports.getRecentPayouts = async (req, res) => {
+  try {
+    const data = await walletService.getRecentPayouts(10);
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};

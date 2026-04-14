@@ -1,0 +1,104 @@
+require("dotenv").config();
+const mongoose = require("mongoose");
+
+const Checkpoint = require("../../models/CheckPoint"); // ✅ fixed case
+const Score = require("../../models/Score");
+
+// 🔁 Import your service
+const gameService = require("../../services/gameService");
+
+// ✅ SCORE GENERATOR
+function generateScores(totalSlots) {
+  const scores = [];
+
+  let teamAScore = 0;
+  let teamBScore = 0;
+
+  for (let i = 1; i <= totalSlots; i++) {
+    const incA = Math.floor(Math.random() * 4); // 0–3
+    const incB = Math.floor(Math.random() * 4);
+
+    teamAScore += incA;
+    teamBScore += incB;
+
+    console.log(
+      `➡️ Slot ${i}: +A(${incA}) +B(${incB}) => ${teamAScore}-${teamBScore}`
+    );
+
+    scores.push({
+      sequence: i,
+      teamAScore,
+      teamBScore,
+    });
+  }
+
+  return scores;
+}
+
+async function run() {
+  try {
+    console.log("🚀 Starting Game Creation Script...\n");
+
+    // ✅ DB connect
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log("✅ DB Connected\n");
+
+    const totalSlots = 4;
+
+    console.log(`🎯 Generating ${totalSlots} slots of scores...\n`);
+
+    // ✅ generate scores
+    const autoScores = generateScores(totalSlots);
+
+    console.log("\n📊 Final Generated Scores:");
+    console.table(autoScores);
+
+    const startTime = new Date(Date.now() + 5 * 60 * 1000);
+
+    console.log("\n⏱ Game Start Time:", startTime);
+
+    const gameData = {
+      title: "Demo Match",
+      teamAName: "Lakers",
+      teamBName: "Warriors",
+      league: "NBA",
+      entryFee: 10,
+      totalSlots,
+      startTime,
+      status: "upcoming",
+      scores: autoScores,
+    };
+
+    console.log("\n📦 Creating Game...\n");
+
+    const game = await gameService.createGame(gameData);
+
+    console.log("🎉 Game Created Successfully!");
+    console.log("🆔 Game ID:", game._id);
+
+    // ✅ Optional: verify DB inserts
+    const checkpointCount = await Checkpoint.countDocuments({
+      gameId: game._id,
+    });
+
+    const scoreCount = await Score.countDocuments({
+      gameId: game._id,
+    });
+
+    console.log("\n📌 Verification:");
+    console.log(`✔ Checkpoints Created: ${checkpointCount}`);
+    console.log(`✔ Scores Inserted: ${scoreCount}`);
+
+    console.log("\n✅ Script Completed Successfully\n");
+
+    process.exit(0);
+  } catch (err) {
+    console.error("\n❌ ERROR OCCURRED:");
+    console.error(err.message);
+    console.error(err.stack);
+
+    process.exit(1);
+  }
+}
+
+run();
