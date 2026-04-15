@@ -561,8 +561,17 @@ class GameService {
         .filter((c) => c.gameId.toString() === game._id.toString())
         .sort((a, b) => a.sequence - b.sequence);
 
+      const currentIndex = gameCheckpoints.findIndex(
+        (c) => c.status === "pending",
+      );
+
       const currentCheckpoint =
-        gameCheckpoints.find((c) => c.status === "pending") || null;
+        currentIndex !== -1 ? gameCheckpoints[currentIndex] : null;
+
+      const nextCheckpoint =
+        currentIndex !== -1 && currentIndex + 1 < gameCheckpoints.length
+          ? gameCheckpoints[currentIndex + 1]
+          : null;
 
       return {
         _id: game._id,
@@ -578,6 +587,18 @@ class GameService {
               type: currentCheckpoint.type,
               sequence: currentCheckpoint.sequence,
               rewardAmount: currentCheckpoint.rewardAmount,
+              startTime: currentCheckpoint.startTime,
+              endTime: currentCheckpoint.endTime,
+            }
+          : null,
+
+        nextCheckpoint: nextCheckpoint
+          ? {
+              type: nextCheckpoint.type,
+              sequence: nextCheckpoint.sequence,
+              rewardAmount: nextCheckpoint.rewardAmount,
+              startTime: nextCheckpoint.startTime,
+              endTime: nextCheckpoint.endTime,
             }
           : null,
       };
@@ -628,9 +649,21 @@ class GameService {
     });
 
     // ✅ 4. Find current active checkpoint index
-    const activeIndex = checkpoints.findIndex(
-      (cp) => cp.status !== "completed",
-    );
+    const now = Date.now();
+
+    let activeIndex = checkpoints.findIndex((cp) => {
+      const start = new Date(cp.startTime).getTime();
+      const end = new Date(cp.endTime).getTime();
+
+      return now >= start && now < end;
+    });
+
+    // fallback → next upcoming
+    if (activeIndex === -1) {
+      activeIndex = checkpoints.findIndex(
+        (cp) => new Date(cp.startTime).getTime() > now,
+      );
+    }
 
     // 5. Merge
     return checkpoints.map((cp, index) => {
