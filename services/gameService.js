@@ -270,6 +270,7 @@ class GameService {
         checkpoint.rewardAmount,
         `${game.teamAName} vs ${game.teamBName}`,
         checkpoint.type === "final",
+        winningNumber
       );
 
       await Transaction.create({
@@ -570,17 +571,26 @@ class GameService {
       winningNumber: { $ne: null },
     }).lean();
 
-    const entries = await GameEntry.find({ gameId }).lean();
+    const entries = await GameEntry.find({ gameId })
+      .populate("userId", "name")
+      .lean();
+
+    // 🔥 Create lookup map
+    const entryMap = new Map();
+    entries.forEach((e) => {
+      entryMap.set(e.assignedNumber, e);
+    });
 
     return checkpoints.map((cp) => {
-      const entry = entries.find((e) => e.assignedNumber === cp.winningNumber);
+      const entry = entryMap.get(cp.winningNumber);
 
       return {
         checkpoint: cp.sequence,
         type: cp.type,
         number: cp.winningNumber,
         amount: cp.rewardAmount,
-        userId: entry?.userId || null,
+        userId: entry?.userId?._id || null,
+        userName: entry?.userId?.name || null,
       };
     });
   }

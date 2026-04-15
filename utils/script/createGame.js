@@ -9,27 +9,40 @@ const gameService = require("../../services/gameService");
 
 // ✅ SCORE GENERATOR
 function generateScores(totalSlots) {
-  const scores = [];
+  let scores = [];
 
   let teamAScore = 0;
   let teamBScore = 0;
 
   for (let i = 1; i <= totalSlots; i++) {
-    const incA = Math.floor(Math.random() * 4); // 0–3
+    const incA = Math.floor(Math.random() * 4);
     const incB = Math.floor(Math.random() * 4);
 
     teamAScore += incA;
     teamBScore += incB;
-
-    console.log(
-      `➡️ Slot ${i}: +A(${incA}) +B(${incB}) => ${teamAScore}-${teamBScore}`
-    );
 
     scores.push({
       sequence: i,
       teamAScore,
       teamBScore,
     });
+  }
+
+  // ✅ Enforce final winning difference (0–3)
+  let diff = Math.abs(teamAScore - teamBScore);
+
+  if (diff > 3) {
+    console.log("⚠ Adjusting final score to keep diff within 0–3");
+
+    if (teamAScore > teamBScore) {
+      teamBScore = teamAScore - Math.floor(Math.random() * 4);
+    } else {
+      teamAScore = teamBScore - Math.floor(Math.random() * 4);
+    }
+
+    // update last slot
+    scores[scores.length - 1].teamAScore = teamAScore;
+    scores[scores.length - 1].teamBScore = teamBScore;
   }
 
   return scores;

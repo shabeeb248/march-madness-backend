@@ -118,7 +118,7 @@ class WalletService {
     return wallet;
   }
 
-  async addWinning(userId, amount, matchName, isFinal = true) {
+ async addWinning(userId, amount, matchName, isFinal = true, winningNumber = null) {
     const wallet = await Wallet.findOne({ user: userId });
 
     if (!wallet) throw new Error("Wallet not found");
@@ -134,6 +134,7 @@ class WalletService {
       status: "completed",
       title: isFinal ? "Game Winnings (Final)" : "Game Winnings (Half)",
       subtitle: matchName,
+      winningNumber
     });
 
     return wallet;
@@ -156,6 +157,7 @@ class WalletService {
       stage: tx.type === "win_final" ? "Final" : "Half",
       amount: tx.amount,
       createdAt: tx.createdAt,
+      winningNumber: tx.winningNumber,
     }));
   }
 }

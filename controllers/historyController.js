@@ -1,11 +1,21 @@
 const historyService = require("../services/historyService");
 
-exports.createHistory = async (req, res) => {
-  const history = await historyService.createHistory(req.body);
-  res.status(201).json({ success: true, data: history });
-};
+exports.getUserHistory = async (req, res) => {
+  try {
+    const userId = req.user._id;
 
-exports.getHistoryByGame = async (req, res) => {
-  const history = await historyService.getHistoryByGame(req.params.gameId);
-  res.json({ success: true, data: history });
+    const result = await historyService.getUserGameHistory(userId);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Get History Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch history",
+    });
+  }
 };

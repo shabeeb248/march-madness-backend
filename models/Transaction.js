@@ -25,6 +25,10 @@ const transactionSchema = new mongoose.Schema(
     // ✅ NEW: store match/game info
     title: { type: String }, // "Game Winnings (Final)"
     subtitle: { type: String }, // "DUK vs UNC • Mar 24"
+    winningNumber: {
+  type: Number,
+  default: null,
+},
 
     description: { type: String },
   },

@@ -1,14 +1,15 @@
 const History = require("../models/History");
 
-exports.getUserGameHistory = async (userId) => {
+const getUserGameHistory = async (userId) => {
   const histories = await History.find({ user: userId })
     .populate({
       path: "gameId",
-      select: "teamA teamB scoreA scoreB startTime status",
+      select:
+        "teamAName teamBName teamAScore teamBScore startTime status",
     })
     .populate({
       path: "entries",
-      select: "checkpoint type amount status",
+      select: "assignedNumber",
     })
     .sort({ createdAt: -1 });
 
@@ -19,74 +20,77 @@ exports.getUserGameHistory = async (userId) => {
 
     const gameId = h.gameId._id.toString();
 
-    // INIT GAME GROUP
     if (!grouped[gameId]) {
       grouped[gameId] = {
-        _id: gameId,
+        teamA: h.gameId.teamAName,
+        teamB: h.gameId.teamBName,
 
-        game: {
-          teamA: h.gameId.teamA,
-          teamB: h.gameId.teamB,
-          scoreA: h.gameId.scoreA || 0,
-          scoreB: h.gameId.scoreB || 0,
-          startTime: h.gameId.startTime,
-          status: h.gameId.status,
-        },
+        score: `${h.gameId.teamAScore || 0}-${
+          h.gameId.teamBScore || 0
+        }`,
 
-        entryFee: 0,
-        totalWin: 0,
-        userNumber: h.assignedNumber || null,
+        startTime: h.gameId.startTime,
+
+        yourNumber: h.assignedNumber || null,
+
+        entry: 0,
+        amount: 0,
 
         checkpoints: [],
-
-        createdAt: h.createdAt,
       };
     }
 
-    // ENTRY (JOINED)
+    // ENTRY
     if (h.action === "joined") {
-      grouped[gameId].entryFee += h.amount || 0;
+      grouped[gameId].entry += h.amount || 0;
     }
 
     // WIN
     if (h.action === "win") {
-      grouped[gameId].totalWin += h.amount || 0;
-
-      grouped[gameId].checkpoints.push({
-        type: "Win",
-        status: "won",
-        amount: h.amount || 0,
-      });
-    }
-
-    // REFUND
-    if (h.action === "refund") {
-      grouped[gameId].checkpoints.push({
-        type: "Refund",
-        status: "lost",
-        amount: 0,
-      });
-    }
-
-    // OPTIONAL: if entries exist → better checkpoint details
-    if (h.entries && h.entries.length > 0) {
-      h.entries.forEach((entry) => {
-        grouped[gameId].checkpoints.push({
-          type: entry.type || "Checkpoint",
-          status: entry.status === "won" ? "won" : "lost",
-          amount: entry.status === "won" ? entry.amount : 0,
-        });
-      });
+      grouped[gameId].amount += h.amount || 0;
     }
   });
 
-  // CONVERT TO ARRAY
-  let result = Object.values(grouped);
+  let games = Object.values(grouped).map((g) => {
+    const date = new Date(g.startTime);
 
-  // SORT BY LATEST GAME
-  result = result.sort(
-    (a, b) => new Date(b.game.startTime) - new Date(a.game.startTime)
-  );
+    return {
+      ...g,
+      month: date.toLocaleString("en-US", { month: "short" }),
+      day: date.getDate(),
 
-  return result;
+      win: g.amount > 0,
+
+      checkpointsWon: 0,
+      totalCheckpoints: 0,
+    };
+  });
+
+  // SORT
+  games.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+
+  // SUMMARY
+  const totalWinnings = games.reduce((sum, g) => sum + g.amount, 0);
+  const gamesPlayed = games.length;
+  const wins = games.filter((g) => g.win).length;
+
+  const winRate = gamesPlayed
+    ? Math.round((wins / gamesPlayed) * 100)
+    : 0;
+
+  const bestHit = Math.max(...games.map((g) => g.amount), 0);
+
+  return {
+    summary: {
+      totalWinnings,
+      gamesPlayed,
+      winRate,
+      bestHit,
+    },
+    games,
+  };
+};
+
+module.exports = {
+  getUserGameHistory,
 };

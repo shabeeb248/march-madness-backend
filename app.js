@@ -38,6 +38,7 @@ app.use("/api/games", require("./routes/gameRoutes"));
 app.use("/api/entries", require("./routes/entryRoutes"));
 app.use("/api/history", require("./routes/historyRoutes"));
 app.use("/api/wallet", require("./routes/walletRoutes"));
+app.use("/api/checkpoints", require("./routes/checkpointRoutes"));
 
 // Start Server
 const PORT = process.env.PORT || 5000;
