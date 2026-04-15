@@ -56,6 +56,22 @@ class UserService {
       highestWin,
     };
   }
+  // Update user
+  async updateUser(userId, updateData) {
+    // If password is being updated → hash it
+    if (updateData.password) {
+      const hashedPassword = await bcrypt.hash(updateData.password, 10);
+      updateData.password = hashedPassword;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: updateData },
+      { new: true, runValidators: true },
+    ).select("-password"); // hide password
+
+    return updatedUser;
+  }
 }
 
 module.exports = new UserService();

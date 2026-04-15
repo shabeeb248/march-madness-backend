@@ -21,10 +21,19 @@ function generateScores(totalSlots) {
     teamAScore += incA;
     teamBScore += incB;
 
+    // Default winning number logic (example)
+    let winningNumber = Math.abs(teamAScore - teamBScore) % 10;
+
+    // ✅ Force 0 for specific checkpoints
+    if ([1, 3, 6].includes(i)) {
+      winningNumber = 0;
+    }
+
     scores.push({
       sequence: i,
       teamAScore,
       teamBScore,
+      winningNumber,
     });
   }
 
@@ -41,8 +50,17 @@ function generateScores(totalSlots) {
     }
 
     // update last slot
-    scores[scores.length - 1].teamAScore = teamAScore;
-    scores[scores.length - 1].teamBScore = teamBScore;
+    const last = scores[scores.length - 1];
+    last.teamAScore = teamAScore;
+    last.teamBScore = teamBScore;
+
+    // recompute winning number
+    last.winningNumber = Math.abs(teamAScore - teamBScore) % 10;
+
+    // ✅ re-enforce if last is 1,3,6
+    if ([1, 3, 6].includes(last.sequence)) {
+      last.winningNumber = 0;
+    }
   }
 
   return scores;
@@ -56,7 +74,7 @@ async function run() {
     await mongoose.connect(process.env.MONGO_URI);
     console.log("✅ DB Connected\n");
 
-    const totalSlots = 4;
+    const totalSlots = 8;
 
     console.log(`🎯 Generating ${totalSlots} slots of scores...\n`);
 

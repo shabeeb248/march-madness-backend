@@ -14,7 +14,7 @@ const checkpointSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "completed"],
+      enum: ["pending", "processing", "completed"],
       default: "pending",
     },
 
@@ -27,7 +27,7 @@ const checkpointSchema = new mongoose.Schema(
     endTime: Date,
     duration: Number, // seconds (e.g. 240)
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Checkpoint", checkpointSchema);

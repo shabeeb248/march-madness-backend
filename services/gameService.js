@@ -27,41 +27,86 @@ class GameService {
       scores = [],
     } = data;
 
-    const potAmount = Number(entryFee) * Number(totalSlots) + 10;
+    // ===============================
+    // ✅ VALIDATION
+    // ===============================
+    if (!title || !teamAName || !teamBName || !entryFee || !startTime) {
+      throw new Error("Missing required fields");
+    }
 
+    // ===============================
+    // ✅ SAFE CALCULATIONS
+    // ===============================
+    const fee = Number(entryFee);
+    const slots = Number(totalSlots);
+
+    const potAmount = fee * slots; // ✅ removed hardcoded +10
+
+    // ===============================
+    // ✅ CREATE GAME
+    // ===============================
     const game = await Game.create({
       title,
       teamAName,
       teamBName,
       league,
-      entryFee: Number(entryFee),
-      totalSlots: Number(totalSlots),
+      entryFee: fee,
+      totalSlots: slots,
       potAmount,
-      startTime,
+      startTime: new Date(startTime),
       status,
     });
 
-    await this.createCheckpoints(game._id, totalSlots);
+    // ===============================
+    // ✅ CREATE CHECKPOINTS
+    // ===============================
+    await this.createCheckpoints(game._id, slots);
 
-    // ✅ preload scores
+    // ===============================
+    // ✅ SET GAME END TIME (IMPORTANT)
+    // ===============================
+    const lastCheckpoint = await Checkpoint.findOne({
+      gameId: game._id,
+    }).sort({ sequence: -1 });
+
+    if (lastCheckpoint?.endTime) {
+      await Game.updateOne(
+        { _id: game._id },
+        { $set: { endTime: lastCheckpoint.endTime } },
+      );
+    }
+
+    // ===============================
+    // ✅ PRELOAD SCORES (OPTIMIZED)
+    // ===============================
     if (scores.length) {
-      const checkpointDocs = await Checkpoint.find({ gameId: game._id });
+      const checkpointDocs = await Checkpoint.find({
+        gameId: game._id,
+      }).lean();
+
+      // 🔥 faster lookup map
+      const checkpointMap = new Map();
+      checkpointDocs.forEach((c) => {
+        checkpointMap.set(c.sequence, c._id);
+      });
 
       const scoreDocs = scores
         .map((s) => {
-          const cp = checkpointDocs.find((c) => c.sequence === s.sequence);
-          if (!cp) return null;
+          const checkpointId = checkpointMap.get(s.sequence);
+          if (!checkpointId) return null;
 
           return {
             gameId: game._id,
-            checkpointId: cp._id,
+            checkpointId,
             teamAScore: s.teamAScore,
             teamBScore: s.teamBScore,
           };
         })
         .filter(Boolean);
 
-      await Score.insertMany(scoreDocs);
+      if (scoreDocs.length) {
+        await Score.insertMany(scoreDocs);
+      }
     }
 
     return game;
@@ -165,22 +210,29 @@ class GameService {
   // ✅ Start Game
   // ===============================
   async startGame(gameId) {
-    const game = await Game.findById(gameId);
-    if (!game) throw new Error("Game not found");
+    // ✅ atomic update (only if still upcoming)
+    const game = await Game.findOneAndUpdate(
+      { _id: gameId, status: "upcoming" },
+      { $set: { status: "live" } },
+      { new: true },
+    );
 
-    game.status = "live";
-    await game.save();
+    if (!game) return null; // already started
+
+    console.log(`🚀 Game STARTED: ${gameId}`);
 
     this.runGameLoop(gameId);
 
     return game;
   }
-
   // ===============================
   // ✅ GAME LOOP
   // ===============================
   runGameLoop(gameId) {
-    if (this.runningGames.has(gameId)) return;
+    if (this.runningGames.has(gameId)) {
+      console.log(`⚠️ Loop already running for ${gameId}`);
+      return;
+    }
 
     console.log(`🎯 Game loop STARTED: ${gameId}`);
     const interval = setInterval(async () => {
@@ -241,76 +293,103 @@ class GameService {
   // ✅ PROCESS CHECKPOINT
   // ===============================
   async processCheckpoint(gameId, checkpoint, score) {
-    const total = score.teamAScore + score.teamBScore;
-    const winningNumber = total % 10;
+    // 🔒 Prevent double processing
+    const locked = await Checkpoint.findOneAndUpdate(
+      {
+        _id: checkpoint._id,
+        status: "pending",
+      },
+      {
+        $set: { status: "processing" }, // temp lock
+      },
+      { new: true },
+    );
 
-    const winnerEntry = await GameEntry.findOne({
-      gameId,
-      assignedNumber: winningNumber,
-    });
+    if (!locked) return; // already processed by another worker
 
-    const game = await Game.findById(gameId);
+    try {
+      if (!score) {
+        console.log("⚠️ No score found, skipping checkpoint");
+        return;
+      }
 
-    game.teamAScore = score.teamAScore;
-    game.teamBScore = score.teamBScore;
+      const total = score.teamAScore + score.teamBScore;
+      const winningNumber = total % 10;
 
-    await game.save();
+      const winnerEntry = await GameEntry.findOne({
+        gameId,
+        assignedNumber: winningNumber,
+      });
 
-    let walletResult = null;
-
-    if (winnerEntry) {
-      // ✅ map checkpoint type → transaction type
-      let txType = "win_timeout";
-
-      if (checkpoint.type === "halftime") txType = "win_half";
-      if (checkpoint.type === "final") txType = "win_final";
-
-      walletResult = await WalletService.addWinning(
-        winnerEntry.userId,
-        checkpoint.rewardAmount,
-        `${game.teamAName} vs ${game.teamBName}`,
-        checkpoint.type === "final",
-        winningNumber
+      // ✅ update game score safely
+      await Game.updateOne(
+        { _id: gameId },
+        {
+          $set: {
+            teamAScore: score.teamAScore,
+            teamBScore: score.teamBScore,
+          },
+        },
       );
 
-      await Transaction.create({
-        user: winnerEntry.userId,
-        type: txType,
-        amount: checkpoint.rewardAmount,
-        balanceAfter: walletResult.balance,
-        status: "completed",
-        title:
-          checkpoint.type === "final"
-            ? "Final Win"
-            : checkpoint.type === "halftime"
-              ? "Half Win"
-              : "Timeout Win",
-        subtitle: `${game.teamAName} vs ${game.teamBName}`,
-        metadata: {
+      let walletResult = null;
+
+      if (winnerEntry) {
+        let txType = "win_timeout";
+        if (checkpoint.type === "halftime") txType = "win_half";
+        if (checkpoint.type === "final") txType = "win_final";
+
+        walletResult = await WalletService.addWinning(
+          winnerEntry.userId,
+          checkpoint.rewardAmount,
+          "",
+          checkpoint.type === "final",
+          winningNumber,
+        );
+
+        await Transaction.create({
+          user: winnerEntry.userId,
+          type: txType,
+          amount: checkpoint.rewardAmount,
+          balanceAfter: walletResult.balance,
+          status: "completed",
+          metadata: {
+            checkpointId: checkpoint._id,
+            winningNumber,
+          },
+        });
+
+        await History.create({
+          gameId,
+          action: "win",
+          user: winnerEntry.userId,
+          amount: checkpoint.rewardAmount,
+          balanceAfter: walletResult.balance,
           checkpointId: checkpoint._id,
           winningNumber,
-          checkpointType: checkpoint.type,
+        });
+      }
+
+      // ✅ mark completed
+      await Checkpoint.updateOne(
+        { _id: checkpoint._id },
+        {
+          $set: {
+            status: "completed",
+            winningNumber,
+            winningEntryId: winnerEntry?._id || null,
+          },
         },
-      });
+      );
+    } catch (err) {
+      console.error(err);
 
-      await History.create({
-        gameId,
-        entries: [],
-        action: "win",
-        user: winnerEntry.userId,
-        amount: checkpoint.rewardAmount,
-        balanceAfter: walletResult.balance,
-        checkpointId: checkpoint._id,
-        winningNumber,
-        type: checkpoint.type,
-      });
+      // 🔁 revert lock if failed
+      await Checkpoint.updateOne(
+        { _id: checkpoint._id },
+        { $set: { status: "pending" } },
+      );
     }
-
-    checkpoint.status = "completed";
-    checkpoint.winningNumber = winningNumber;
-    checkpoint.winningEntryId = winnerEntry?._id || null;
-
-    await checkpoint.save();
   }
 
   // ===============================
@@ -329,7 +408,7 @@ class GameService {
         teamAScore,
         teamBScore,
       },
-      { upsert: true, new: true },
+      { upsert: true, returnDocument: "after" },
     );
   }
 
@@ -505,15 +584,20 @@ class GameService {
     });
   }
   async completeGame(gameId) {
-    const game = await Game.findById(gameId);
-    if (!game) throw new Error("Game not found");
+    const game = await Game.findOneAndUpdate(
+      { _id: gameId, status: "live" }, // ✅ only if live
+      {
+        $set: {
+          status: "completed",
+          completedAt: new Date(),
+        },
+      },
+      { new: true },
+    );
 
-    game.status = "completed";
-    game.completedAt = new Date();
+    if (!game) return null; // already completed
 
-    await game.save();
-
-    // 🛑 stop interval if running
+    // 🛑 stop interval safely
     if (this.runningGames.has(gameId)) {
       clearInterval(this.runningGames.get(gameId));
       this.runningGames.delete(gameId);
@@ -532,20 +616,27 @@ class GameService {
 
     const checkpointIds = checkpoints.map((c) => c._id);
 
-    // 2. Get all scores (single query)
+    // 2. Get all scores
     const scores = await Score.find({
       checkpointId: { $in: checkpointIds },
     }).lean();
 
-    // 3. Convert scores to map (OPTIMIZED 🔥)
+    // 3. Convert scores to map
     const scoreMap = new Map();
     scores.forEach((s) => {
       scoreMap.set(s.checkpointId.toString(), s);
     });
 
-    // 4. Merge
-    return checkpoints.map((cp) => {
+    // ✅ 4. Find current active checkpoint index
+    const activeIndex = checkpoints.findIndex(
+      (cp) => cp.status !== "completed",
+    );
+
+    // 5. Merge
+    return checkpoints.map((cp, index) => {
       const isCompleted = cp.status === "completed";
+      const isActive = index === activeIndex;
+
       const score = scoreMap.get(cp._id.toString());
 
       return {
@@ -553,7 +644,9 @@ class GameService {
         sequence: cp.sequence,
         type: cp.type,
         rewardAmount: cp.rewardAmount,
-        status: cp.status,
+
+        // ✅ Override status
+        status: isCompleted ? "completed" : isActive ? "active" : "pending",
 
         teamAScore: isCompleted ? score?.teamAScore || 0 : 0,
         teamBScore: isCompleted ? score?.teamBScore || 0 : 0,

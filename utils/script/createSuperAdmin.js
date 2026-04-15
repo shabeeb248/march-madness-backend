@@ -18,6 +18,7 @@ async function createSuperAdmin() {
     const mobile = "9999999999"; // optional mobile
     const password = "SuperAdmin@123"; // change password
     const name = "Super Admin";
+    const username = "superadmin";
 
     // Check if superadmin already exists
     const existing = await User.findOne({ email });
@@ -36,6 +37,7 @@ async function createSuperAdmin() {
       mobile,
       password: hashedPassword,
       role: "superadmin",
+      username,
     });
 
     await superadmin.save();

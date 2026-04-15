@@ -1,3 +1,5 @@
+// schedulers/gameScheduler.js
+
 const cron = require("node-cron");
 const Game = require("../models/Game");
 const Checkpoint = require("../models/CheckPoint");
@@ -8,57 +10,136 @@ function startGameScheduler() {
 
   cron.schedule("* * * * *", async () => {
     const now = new Date();
-
     console.log("⏱️ Cron triggered at:", now.toISOString());
 
-    // ===============================
-    // 1. START UPCOMING GAMES
-    // ===============================
-    const upcomingGames = await Game.find({
-      status: "upcoming",
-      startTime: { $lte: now },
-    });
-
-    for (const game of upcomingGames) {
-      try {
-        console.log(`🚀 Starting Game: ${game._id}`);
-        await GameService.startGame(game._id);
-      } catch (err) {
-        console.log(`❌ Error starting game ${game._id}:`, err.message);
-      }
-    }
-
-    // ===============================
-    // 2. COMPLETE LIVE GAMES
-    // ===============================
-    const liveGames = await Game.find({
-      status: "live",
-    });
-
-    for (const game of liveGames) {
-      try {
-        // ✅ CONDITION 1: End time reached
-        if (game.endTime && game.endTime <= now) {
-          console.log(`🏁 Completing Game (endTime): ${game._id}`);
-          await GameService.completeGame(game._id);
-          continue;
-        }
-
-        // ✅ CONDITION 2: All checkpoints completed
-        const pendingCheckpoint = await Checkpoint.findOne({
-          gameId: game._id,
-          status: "pending",
-        });
-
-        if (!pendingCheckpoint) {
-          console.log(`🏁 Completing Game (all checkpoints done): ${game._id}`);
-          await GameService.completeGame(game._id);
-        }
-      } catch (err) {
-        console.log(`❌ Error completing game ${game._id}:`, err.message);
-      }
+    try {
+      // Run both in parallel
+      await Promise.all([
+        handleUpcomingGames(now),
+        handleLiveGames(now),
+      ]);
+    } catch (err) {
+      console.error("❌ Scheduler error:", err.message);
     }
   });
 }
 
 module.exports = startGameScheduler;
+
+/* =====================================================
+   🚀 HANDLE UPCOMING GAMES
+===================================================== */
+async function handleUpcomingGames(now) {
+  try {
+    const games = await Game.find({
+      status: "upcoming",
+      startTime: { $lte: now },
+      processing: false,
+    }).lean();
+
+    if (!games.length) return;
+
+    await Promise.all(
+      games.map(async (game) => {
+        let lockedGame = null;
+
+        try {
+          // 🔒 Lock the game (atomic)
+          lockedGame = await Game.findOneAndUpdate(
+            { _id: game._id, processing: false },
+            { $set: { processing: true } },
+            { new: true }
+          );
+
+          if (!lockedGame) return;
+
+          console.log(`🚀 Starting Game: ${lockedGame._id}`);
+
+          // ✅ Safe start (idempotent)
+          await GameService.startGame(lockedGame._id);
+        } catch (err) {
+          console.error(`❌ Start Error ${game._id}:`, err.message);
+        } finally {
+          // 🔓 Always unlock
+          if (lockedGame) {
+            await Game.updateOne(
+              { _id: lockedGame._id },
+              { $set: { processing: false } }
+            );
+          }
+        }
+      })
+    );
+  } catch (err) {
+    console.error("❌ Upcoming handler error:", err.message);
+  }
+}
+
+/* =====================================================
+   🏁 HANDLE LIVE GAMES
+===================================================== */
+async function handleLiveGames(now) {
+  try {
+    const games = await Game.find({
+      status: "live",
+      processing: false,
+    }).lean();
+
+    if (!games.length) return;
+
+    await Promise.all(
+      games.map(async (game) => {
+        let lockedGame = null;
+
+        try {
+          // 🔒 Lock game (atomic)
+          lockedGame = await Game.findOneAndUpdate(
+            { _id: game._id, processing: false },
+            { $set: { processing: true } },
+            { new: true }
+          );
+
+          if (!lockedGame) return;
+
+          // ===============================
+          // ✅ CONDITION 1: End time reached
+          // ===============================
+          if (lockedGame.endTime && lockedGame.endTime <= now) {
+            console.log(`🏁 Completing Game (endTime): ${lockedGame._id}`);
+
+            await GameService.completeGame(lockedGame._id);
+            return;
+          }
+
+          // ===============================
+          // ✅ CONDITION 2: All checkpoints done
+          // ===============================
+          const hasPendingCheckpoint = await Checkpoint.exists({
+            gameId: lockedGame._id,
+            status: "pending",
+          });
+
+          if (!hasPendingCheckpoint) {
+            console.log(
+              `🏁 Completing Game (checkpoints done): ${lockedGame._id}`
+            );
+
+            await GameService.completeGame(lockedGame._id);
+          }
+        } catch (err) {
+          console.error(`❌ Complete Error ${game._id}:`, err.message);
+        } finally {
+          // 🔓 Always unlock
+          if (lockedGame) {
+            await Game.updateOne(
+              { _id: lockedGame._id },
+              { $set: { processing: false } }
+            );
+          }
+        }
+      })
+    );
+  } catch (err) {
+    console.error("❌ Live handler error:", err.message);
+  }
+}
