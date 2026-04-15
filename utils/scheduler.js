@@ -14,10 +14,7 @@ function startGameScheduler() {
 
     try {
       // Run both in parallel
-      await Promise.all([
-        handleUpcomingGames(now),
-        handleLiveGames(now),
-      ]);
+      await Promise.all([handleUpcomingGames(now), handleLiveGames(now)]);
     } catch (err) {
       console.error("❌ Scheduler error:", err.message);
     }
@@ -48,7 +45,7 @@ async function handleUpcomingGames(now) {
           lockedGame = await Game.findOneAndUpdate(
             { _id: game._id, processing: false },
             { $set: { processing: true } },
-            { new: true }
+            { returnDocument: "after" }, // ✅ FIX
           );
 
           if (!lockedGame) return;
@@ -64,11 +61,11 @@ async function handleUpcomingGames(now) {
           if (lockedGame) {
             await Game.updateOne(
               { _id: lockedGame._id },
-              { $set: { processing: false } }
+              { $set: { processing: false } },
             );
           }
         }
-      })
+      }),
     );
   } catch (err) {
     console.error("❌ Upcoming handler error:", err.message);
@@ -96,7 +93,7 @@ async function handleLiveGames(now) {
           lockedGame = await Game.findOneAndUpdate(
             { _id: game._id, processing: false },
             { $set: { processing: true } },
-            { new: true }
+            { returnDocument: "after" }, // ✅ FIX
           );
 
           if (!lockedGame) return;
@@ -121,7 +118,7 @@ async function handleLiveGames(now) {
 
           if (!hasPendingCheckpoint) {
             console.log(
-              `🏁 Completing Game (checkpoints done): ${lockedGame._id}`
+              `🏁 Completing Game (checkpoints done): ${lockedGame._id}`,
             );
 
             await GameService.completeGame(lockedGame._id);
@@ -133,11 +130,11 @@ async function handleLiveGames(now) {
           if (lockedGame) {
             await Game.updateOne(
               { _id: lockedGame._id },
-              { $set: { processing: false } }
+              { $set: { processing: false } },
             );
           }
         }
-      })
+      }),
     );
   } catch (err) {
     console.error("❌ Live handler error:", err.message);

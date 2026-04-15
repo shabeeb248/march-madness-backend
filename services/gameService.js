@@ -214,7 +214,7 @@ class GameService {
     const game = await Game.findOneAndUpdate(
       { _id: gameId, status: "upcoming" },
       { $set: { status: "live" } },
-      { new: true },
+      { returnDocument: "after" },
     );
 
     if (!game) return null; // already started
@@ -302,7 +302,7 @@ class GameService {
       {
         $set: { status: "processing" }, // temp lock
       },
-      { new: true },
+      { returnDocument: "after" },
     );
 
     if (!locked) return; // already processed by another worker
@@ -592,7 +592,7 @@ class GameService {
           completedAt: new Date(),
         },
       },
-      { new: true },
+      { returnDocument: "after" },
     );
 
     if (!game) return null; // already completed

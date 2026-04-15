@@ -63,17 +63,9 @@ class CheckpointController {
       const { gameId } = req.query;
 
       const checkpoint = await CheckpointService.getNextCheckpoint({ gameId });
-
-      if (!checkpoint) {
-        return res.status(404).json({
-          success: false,
-          message: "No upcoming checkpoint",
-        });
-      }
-
       return res.json({
         success: true,
-        data: checkpoint,
+        data: checkpoint ?? [],
       });
     } catch (error) {
       console.error("getNext error:", error);
